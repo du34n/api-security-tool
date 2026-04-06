@@ -1,0 +1,16 @@
+{
+  "base_url": "https://jsonplaceholder.typicode.com",
+  "auth_token": "your-token-here",
+  "timeout_seconds": 10,
+  "concurrency": 5,
+  "global_headers": {
+    "Content-Type": "application/json"
+  },
+  "endpoints": [
+    { "method": "GET",    "url": "/users" },
+    { "method": "GET",    "url": "/users/1" },
+    { "method": "GET",    "url": "/posts" },
+    { "method": "GET",    "url": "/posts/1" },
+    { "method": "DELETE", "url": "/posts/1" }
+  ]
+}

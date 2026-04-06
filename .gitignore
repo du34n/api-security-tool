@@ -1,0 +1,4 @@
+*.exe
+report.html
+report.json
+config.json
