@@ -8,7 +8,6 @@ import (
 	"api-security-tool/analyzer"
 )
 
-// SaveJSON — raporu JSON olarak kaydeder
 func SaveJSON(r analyzer.Report, path string) error {
 	data, err := json.MarshalIndent(r, "", "  ")
 	if err != nil {
@@ -17,7 +16,6 @@ func SaveJSON(r analyzer.Report, path string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// SaveHTML — raporu okunabilir HTML olarak kaydeder
 func SaveHTML(r analyzer.Report, path string) error {
 	html := buildHTML(r)
 	return os.WriteFile(path, []byte(html), 0644)
@@ -30,19 +28,17 @@ func buildHTML(r analyzer.Report) string {
 	for i, er := range r.EndpointRisks {
 		anomalyBadges := ""
 		if er.IsTimeAnomaly {
-			anomalyBadges += `<span class="badge badge-warn">⏱ Zaman Anomalisi</span> `
+			anomalyBadges += `<span class="badge badge-warn">Time Anomaly</span> `
 		}
 		if er.IsSizeAnomaly {
-			anomalyBadges += `<span class="badge badge-warn">📦 Boyut Anomalisi</span>`
+			anomalyBadges += `<span class="badge badge-warn">Size Anomaly</span>`
 		}
 
-		// Öneri listesi
 		recs := ""
 		for _, rec := range er.Recommendations {
 			recs += fmt.Sprintf(`<li>%s</li>`, rec)
 		}
 
-		// Her bulgu için detay kartı
 		findingCards := ""
 		for _, f := range er.Findings {
 			sevClass := severityClass(string(f.Severity))
@@ -54,15 +50,15 @@ func buildHTML(r analyzer.Report) string {
 					</div>
 					<div class="finding-body">
 						<div class="finding-row">
-							<span class="finding-label">Açıklama</span>
+							<span class="finding-label">Description</span>
 							<span class="finding-val">%s</span>
 						</div>
 						<div class="finding-row">
-							<span class="finding-label">Kanıt / Input</span>
+							<span class="finding-label">Evidence</span>
 							<code class="evidence">%s</code>
 						</div>
 						<div class="finding-row">
-							<span class="finding-label">Test Edilen URL</span>
+							<span class="finding-label">Tested URL</span>
 							<code class="evidence">%s %s</code>
 						</div>
 					</div>
@@ -76,7 +72,7 @@ func buildHTML(r analyzer.Report) string {
 		}
 
 		if findingCards == "" {
-			findingCards = `<p class="no-finding">Bu endpoint için aktif güvenlik açığı tespit edilmedi.</p>`
+			findingCards = `<p class="no-finding">No active vulnerabilities detected for this endpoint.</p>`
 		}
 
 		cards += fmt.Sprintf(`
@@ -93,16 +89,16 @@ func buildHTML(r analyzer.Report) string {
 					</div>
 					<span class="score-num">%.1f / 100</span>
 					<span class="badge badge-%s">%s</span>
-					<span class="chevron" id="chev-%d">▼</span>
+					<span class="chevron" id="chev-%d">v</span>
 				</div>
 			</div>
 			<div class="ep-body" id="body-%d">
 				<div class="ep-section">
-					<div class="section-title">🔍 Güvenlik Bulguları (%d adet)</div>
+					<div class="section-title">Security Findings (%d)</div>
 					%s
 				</div>
 				<div class="ep-section">
-					<div class="section-title">💡 Öneriler</div>
+					<div class="section-title">Recommendations</div>
 					<ul class="rec-list">%s</ul>
 				</div>
 			</div>
@@ -123,7 +119,7 @@ func buildHTML(r analyzer.Report) string {
 	}
 
 	return fmt.Sprintf(`<!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>API Security Report</title>
@@ -133,8 +129,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 h1 { color: #f8fafc; font-size: 26px; margin-bottom: 4px; }
 .meta { color: #64748b; font-size: 13px; margin-bottom: 28px; }
 h2 { color: #f1f5f9; font-size: 16px; margin: 32px 0 12px; text-transform: uppercase; letter-spacing: 1px; }
-
-/* Summary Cards */
 .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 32px; }
 .card { background: #1e2433; border-radius: 10px; padding: 18px 24px; min-width: 130px; }
 .card-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
@@ -145,8 +139,6 @@ h2 { color: #f1f5f9; font-size: 16px; margin: 32px 0 12px; text-transform: upper
 .c-medium { color: #eab308; }
 .c-low { color: #22c55e; }
 .c-anomaly { color: #a78bfa; }
-
-/* Endpoint Cards */
 .ep-card { background: #1a2030; border: 1px solid #2d3748; border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
 .ep-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; cursor: pointer; user-select: none; }
 .ep-header:hover { background: #202838; }
@@ -156,16 +148,11 @@ h2 { color: #f1f5f9; font-size: 16px; margin: 32px 0 12px; text-transform: upper
 .score-bar { background: #2d3748; border-radius: 4px; height: 5px; width: 80px; overflow: hidden; }
 .score-fill { height: 100%%; border-radius: 4px; }
 .score-num { font-size: 12px; color: #94a3b8; white-space: nowrap; }
-.chevron { color: #64748b; font-size: 12px; transition: transform 0.2s; }
-.chevron.open { transform: rotate(180deg); }
-
-/* Expand Body */
+.chevron { color: #64748b; font-size: 12px; }
 .ep-body { display: none; border-top: 1px solid #2d3748; padding: 20px 18px; }
 .ep-body.open { display: block; }
 .ep-section { margin-bottom: 20px; }
 .section-title { font-size: 13px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
-
-/* Finding Cards */
 .finding-card { border-radius: 8px; border: 1px solid; margin-bottom: 10px; overflow: hidden; }
 .finding-CRITICAL { border-color: #ef444440; background: #1a0a0a; }
 .finding-HIGH { border-color: #f9731640; background: #1a100a; }
@@ -180,12 +167,8 @@ h2 { color: #f1f5f9; font-size: 16px; margin: 32px 0 12px; text-transform: upper
 .finding-val { font-size: 13px; color: #cbd5e1; }
 .evidence { background: #0d1117; border: 1px solid #2d3748; padding: 4px 10px; border-radius: 4px; font-size: 12px; color: #7dd3fc; word-break: break-all; }
 .no-finding { color: #4b5563; font-size: 13px; font-style: italic; margin: 0; }
-
-/* Rec list */
 .rec-list { margin: 0; padding-left: 18px; }
 .rec-list li { font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
-
-/* Badges & Methods */
 .badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .badge-CRITICAL { background: #450a0a; color: #ef4444; border: 1px solid #ef444460; }
 .badge-HIGH     { background: #431407; color: #f97316; border: 1px solid #f9731660; }
@@ -203,33 +186,31 @@ h2 { color: #f1f5f9; font-size: 16px; margin: 32px 0 12px; text-transform: upper
 </head>
 <body>
 
-<h1>🔐 API Security Report</h1>
-<div class="meta">Tarama zamanı: %s &nbsp;|&nbsp; Toplam endpoint: %d</div>
+<h1>API Security Report</h1>
+<div class="meta">Scanned: %s &nbsp;|&nbsp; Endpoints: %d</div>
 
 <div class="cards">
-  <div class="card"><div class="card-label">Genel Risk</div><div class="card-value c-overall">%.0f</div></div>
-  <div class="card"><div class="card-label">Kritik</div><div class="card-value c-critical">%d</div></div>
-  <div class="card"><div class="card-label">Yüksek</div><div class="card-value c-high">%d</div></div>
-  <div class="card"><div class="card-label">Orta</div><div class="card-value c-medium">%d</div></div>
-  <div class="card"><div class="card-label">Düşük</div><div class="card-value c-low">%d</div></div>
-  <div class="card"><div class="card-label">Anomali</div><div class="card-value c-anomaly">%d</div></div>
+  <div class="card"><div class="card-label">Overall Risk</div><div class="card-value c-overall">%.0f</div></div>
+  <div class="card"><div class="card-label">Critical</div><div class="card-value c-critical">%d</div></div>
+  <div class="card"><div class="card-label">High</div><div class="card-value c-high">%d</div></div>
+  <div class="card"><div class="card-label">Medium</div><div class="card-value c-medium">%d</div></div>
+  <div class="card"><div class="card-label">Low</div><div class="card-value c-low">%d</div></div>
+  <div class="card"><div class="card-label">Anomalies</div><div class="card-value c-anomaly">%d</div></div>
 </div>
 
-<h2>Endpoint Risk Analizi</h2>
+<h2>Endpoint Risk Analysis</h2>
 %s
 
 <script>
 function toggle(i) {
   var body = document.getElementById('body-' + i);
-  var chev = document.getElementById('chev-' + i);
   body.classList.toggle('open');
-  chev.classList.toggle('open');
 }
 </script>
 </body>
 </html>`,
 		overallColor,
-		r.TestedAt.Format("02 Jan 2006 — 15:04:05"),
+		r.TestedAt.Format("02 Jan 2006 - 15:04:05"),
 		r.TotalEndpoints,
 		r.OverallRiskScore,
 		r.Summary.CriticalFindings,

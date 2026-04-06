@@ -12,7 +12,6 @@ import (
 	"api-security-tool/config"
 )
 
-// OpenAPI3 — Swagger/OpenAPI 3.0 spec yapısı
 type OpenAPI3 struct {
 	Servers []struct {
 		URL string `json:"url"`
@@ -23,10 +22,9 @@ type OpenAPI3 struct {
 	} `json:"paths"`
 }
 
-// SwaggerV2 — Swagger 2.0 spec yapısı
 type SwaggerV2 struct {
-	Host     string `json:"host"`
-	BasePath string `json:"basePath"`
+	Host     string   `json:"host"`
+	BasePath string   `json:"basePath"`
 	Schemes  []string `json:"schemes"`
 	Paths    map[string]map[string]struct {
 		Summary     string `json:"summary"`
@@ -34,11 +32,10 @@ type SwaggerV2 struct {
 	} `json:"paths"`
 }
 
-// FetchEndpoints — Swagger URL'inden tüm endpoint'leri çeker
 func FetchEndpoints(swaggerURL string) (string, []config.Endpoint, error) {
 	resp, err := http.Get(swaggerURL)
 	if err != nil {
-		return "", nil, fmt.Errorf("swagger URL'e erişilemedi: %w", err)
+		return "", nil, fmt.Errorf("failed to fetch swagger spec: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -47,27 +44,22 @@ func FetchEndpoints(swaggerURL string) (string, []config.Endpoint, error) {
 		return "", nil, err
 	}
 
-	// Spec URL'inden host'u çıkar (relative server URL'ler için fallback)
 	parsedURL, _ := url.Parse(swaggerURL)
 	specHost := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 
-	// OpenAPI 3 mi Swagger 2 mi?
 	if strings.Contains(string(data), `"openapi"`) {
 		return parseOpenAPI3(data, specHost)
 	}
 	return parseSwaggerV2(data, specHost)
 }
 
-// resolveBaseURL — relative server URL'i absolute'a çevirir
 func resolveBaseURL(serverURL, specHost string) string {
 	if strings.HasPrefix(serverURL, "http://") || strings.HasPrefix(serverURL, "https://") {
 		return serverURL
 	}
-	// Relative URL — spec'in host'uyla birleştir
 	return specHost + serverURL
 }
 
-// replacePathParams — {petId} gibi path parametrelerini örnek değerlerle değiştirir
 var pathParamRe = regexp.MustCompile(`\{[^}]+\}`)
 
 func replacePathParams(path string) string {
@@ -91,7 +83,7 @@ func replacePathParams(path string) string {
 func parseOpenAPI3(data []byte, specHost string) (string, []config.Endpoint, error) {
 	var spec OpenAPI3
 	if err := json.Unmarshal(data, &spec); err != nil {
-		return "", nil, fmt.Errorf("OpenAPI3 parse hatası: %w", err)
+		return "", nil, fmt.Errorf("OpenAPI3 parse error: %w", err)
 	}
 
 	baseURL := specHost
@@ -100,14 +92,14 @@ func parseOpenAPI3(data []byte, specHost string) (string, []config.Endpoint, err
 	}
 
 	endpoints := extractEndpoints(spec.Paths)
-	fmt.Printf("📋 OpenAPI 3.0 spec bulundu — %d endpoint keşfedildi\n", len(endpoints))
+	fmt.Printf("OpenAPI 3.0 spec found -- %d endpoints discovered\n", len(endpoints))
 	return baseURL, endpoints, nil
 }
 
 func parseSwaggerV2(data []byte, specHost string) (string, []config.Endpoint, error) {
 	var spec SwaggerV2
 	if err := json.Unmarshal(data, &spec); err != nil {
-		return "", nil, fmt.Errorf("Swagger 2.0 parse hatası: %w", err)
+		return "", nil, fmt.Errorf("Swagger 2.0 parse error: %w", err)
 	}
 
 	scheme := "https"
@@ -121,7 +113,6 @@ func parseSwaggerV2(data []byte, specHost string) (string, []config.Endpoint, er
 	}
 	baseURL := fmt.Sprintf("%s://%s%s", scheme, host, spec.BasePath)
 
-	// Paths map'i OpenAPI3 formatına dönüştür
 	paths := make(map[string]map[string]struct {
 		Summary     string `json:"summary"`
 		OperationID string `json:"operationId"`
@@ -140,7 +131,7 @@ func parseSwaggerV2(data []byte, specHost string) (string, []config.Endpoint, er
 	}
 
 	endpoints := extractEndpoints(paths)
-	fmt.Printf("📋 Swagger 2.0 spec bulundu — %d endpoint keşfedildi\n", len(endpoints))
+	fmt.Printf("Swagger 2.0 spec found -- %d endpoints discovered\n", len(endpoints))
 	return baseURL, endpoints, nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// Result — bir HTTP isteğinin sonucunu tutar
 type Result struct {
 	URL          string
 	Method       string
@@ -18,18 +17,15 @@ type Result struct {
 	Error        string
 }
 
-// Client — HTTP isteklerini yöneten yapı
 type Client struct {
 	http    *http.Client
 	headers map[string]string
 }
 
-// New — yeni bir Client oluşturur
 func New(timeoutSec int, globalHeaders map[string]string) *Client {
 	return &Client{
 		http: &http.Client{
 			Timeout: time.Duration(timeoutSec) * time.Second,
-			// Redirect'leri takip etme — güvenlik testlerinde önemli
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -38,18 +34,15 @@ func New(timeoutSec int, globalHeaders map[string]string) *Client {
 	}
 }
 
-// Do — verilen method, url ve header'larla istek atar
 func (c *Client) Do(method, url string, extraHeaders map[string]string, body io.Reader) Result {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return Result{URL: url, Method: method, Error: err.Error()}
 	}
 
-	// Global header'ları ekle
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
 	}
-	// Endpoint'e özel header'ları ekle (override eder)
 	for k, v := range extraHeaders {
 		req.Header.Set(k, v)
 	}

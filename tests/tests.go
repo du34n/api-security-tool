@@ -7,7 +7,6 @@ import (
 	"api-security-tool/scanner"
 )
 
-// Severity — açığın ciddiyeti
 type Severity string
 
 const (
@@ -18,7 +17,6 @@ const (
 	Info     Severity = "INFO"
 )
 
-// Finding — tespit edilen bir güvenlik açığı
 type Finding struct {
 	TestName    string
 	Severity    Severity
@@ -28,7 +26,6 @@ type Finding struct {
 	Evidence    string
 }
 
-// Runner — tüm testleri çalıştıran yapı
 type Runner struct {
 	client *scanner.Client
 }
@@ -37,11 +34,9 @@ func New(client *scanner.Client) *Runner {
 	return &Runner{client: client}
 }
 
-// RunAll — verilen endpoint için tüm testleri çalıştırır
 func (r *Runner) RunAll(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
-	// --- Auth & Access Control ---
 	findings = append(findings, r.testAuthBypass(method, url)...)
 	findings = append(findings, r.testBOLA(method, url, headers)...)
 	findings = append(findings, r.testBFLA(method, url, headers)...)
@@ -49,7 +44,6 @@ func (r *Runner) RunAll(method, url string, headers map[string]string) []Finding
 	findings = append(findings, r.testHTTPMethodOverride(url, headers)...)
 	findings = append(findings, r.testVerbTampering(url, headers)...)
 
-	// --- Injection ---
 	findings = append(findings, r.testSQLInjection(method, url)...)
 	findings = append(findings, r.testNoSQLInjection(method, url)...)
 	findings = append(findings, r.testCommandInjection(method, url)...)
@@ -59,26 +53,21 @@ func (r *Runner) RunAll(method, url string, headers map[string]string) []Finding
 	findings = append(findings, r.testSSRF(method, url)...)
 	findings = append(findings, r.testOpenRedirect(method, url)...)
 
-	// --- Data Exposure ---
 	findings = append(findings, r.testSensitiveDataExposure(method, url, headers)...)
 	findings = append(findings, r.testExcessiveDataExposure(method, url, headers)...)
 	findings = append(findings, r.testMassAssignment(method, url, headers)...)
 
-	// --- Misconfiguration ---
 	findings = append(findings, r.testSecurityHeaders(method, url, headers)...)
 	findings = append(findings, r.testCORSMisconfiguration(method, url)...)
 	findings = append(findings, r.testContentTypeConfusion(method, url, headers)...)
 	findings = append(findings, r.testParameterPollution(method, url, headers)...)
 
-	// --- Asset Management ---
 	findings = append(findings, r.testImproperAssetManagement(url)...)
 	findings = append(findings, r.testAPIVersionExposure(url, headers)...)
 
-	// --- Business Logic ---
 	findings = append(findings, r.testRateLimitBypass(method, url, headers)...)
 	findings = append(findings, r.testBusinessLogicFlaws(method, url, headers)...)
 
-	// --- Advanced ---
 	findings = append(findings, r.testGraphQL(url, headers)...)
 	findings = append(findings, r.testLDAPInjection(method, url)...)
 	findings = append(findings, r.testCRLFInjection(method, url, headers)...)
@@ -87,11 +76,6 @@ func (r *Runner) RunAll(method, url string, headers map[string]string) []Finding
 	return findings
 }
 
-// =============================================================================
-// AUTH & ACCESS CONTROL
-// =============================================================================
-
-// testAuthBypass — token olmadan erişim deniyor (PortSwigger: API Auth Testing)
 func (r *Runner) testAuthBypass(method, url string) []Finding {
 	var findings []Finding
 
@@ -125,15 +109,11 @@ func (r *Runner) testAuthBypass(method, url string) []Finding {
 	return findings
 }
 
-// testBOLA — Broken Object Level Authorization (OWASP API #1, PortSwigger IDOR)
-// ID değerlerini değiştirerek başka kullanıcıların verilerine erişim dener
 func (r *Runner) testBOLA(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
-	// Mevcut URL'de sayısal ID var mı?
 	altIDs := []string{"2", "3", "100", "0", "-1", "99999"}
 	for _, id := range altIDs {
-		// /users/1 → /users/2 gibi son segment değiştir
 		testURL := replaceLastID(url, id)
 		if testURL == url {
 			break // ID bulunamadı, test anlamsız
@@ -159,8 +139,6 @@ func (r *Runner) testBOLA(method, url string, headers map[string]string) []Findi
 	return findings
 }
 
-// testBFLA — Broken Function Level Authorization (OWASP API #5)
-// Admin/yönetici fonksiyonlarına yetkisiz erişim dener
 func (r *Runner) testBFLA(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -202,11 +180,9 @@ func (r *Runner) testBFLA(method, url string, headers map[string]string) []Findi
 	return findings
 }
 
-// testJWTNoneAlgorithm — JWT'de alg:none saldırısı (PortSwigger: JWT attacks)
 func (r *Runner) testJWTNoneAlgorithm(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
-	// alg:none ile imzasız JWT (base64url encoded header.payload.)
 	// {"alg":"none","typ":"JWT"}.{"sub":"admin","role":"admin"}.
 	noneJWT := "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTcwMDAwMDAwMH0."
 
@@ -231,7 +207,6 @@ func (r *Runner) testJWTNoneAlgorithm(method, url string, headers map[string]str
 	return findings
 }
 
-// testHTTPMethodOverride — X-HTTP-Method-Override ile method gizleme (PortSwigger: API testing)
 func (r *Runner) testHTTPMethodOverride(url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -258,7 +233,6 @@ func (r *Runner) testHTTPMethodOverride(url string, headers map[string]string) [
 	return findings
 }
 
-// testVerbTampering — beklenmedik HTTP metodlarıyla erişim (PortSwigger: API testing)
 func (r *Runner) testVerbTampering(url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -297,11 +271,6 @@ func (r *Runner) testVerbTampering(url string, headers map[string]string) []Find
 	return findings
 }
 
-// =============================================================================
-// INJECTION ATTACKS
-// =============================================================================
-
-// testSQLInjection — SQL injection (geliştirilmiş, PortSwigger: SQLi)
 func (r *Runner) testSQLInjection(method, url string) []Finding {
 	var findings []Finding
 
@@ -355,7 +324,6 @@ func (r *Runner) testSQLInjection(method, url string) []Finding {
 	return findings
 }
 
-// testNoSQLInjection — NoSQL/MongoDB injection (HTB & PortSwigger)
 func (r *Runner) testNoSQLInjection(method, url string) []Finding {
 	var findings []Finding
 
@@ -418,7 +386,6 @@ func (r *Runner) testNoSQLInjection(method, url string) []Finding {
 	return findings
 }
 
-// testCommandInjection — OS command injection (OWASP API #8)
 func (r *Runner) testCommandInjection(method, url string) []Finding {
 	var findings []Finding
 
@@ -469,7 +436,6 @@ func (r *Runner) testCommandInjection(method, url string) []Finding {
 	return findings
 }
 
-// testXSS — Cross-Site Scripting (yansıtılan XSS testi)
 func (r *Runner) testXSS(method, url string) []Finding {
 	var findings []Finding
 
@@ -503,7 +469,6 @@ func (r *Runner) testXSS(method, url string) []Finding {
 	return findings
 }
 
-// testPathTraversal — directory traversal (PortSwigger: Path traversal)
 func (r *Runner) testPathTraversal(method, url string) []Finding {
 	var findings []Finding
 
@@ -540,7 +505,6 @@ func (r *Runner) testPathTraversal(method, url string) []Finding {
 	return findings
 }
 
-// testXXE — XML External Entity injection (content-type: application/xml)
 func (r *Runner) testXXE(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -568,7 +532,6 @@ func (r *Runner) testXXE(method, url string, headers map[string]string) []Findin
 		return findings
 	}
 
-	// Blind XXE — 500 hatası ya da yanıt farkı
 	if result.StatusCode == 500 || (result.StatusCode != 415 && result.StatusCode != 404) {
 		findings = append(findings, Finding{
 			TestName:    "XXE (Olası Blind XXE)",
@@ -582,7 +545,6 @@ func (r *Runner) testXXE(method, url string, headers map[string]string) []Findin
 	return findings
 }
 
-// testSSRF — Server-Side Request Forgery (OWASP API #7, PortSwigger: SSRF)
 func (r *Runner) testSSRF(method, url string) []Finding {
 	var findings []Finding
 
@@ -605,7 +567,6 @@ func (r *Runner) testSSRF(method, url string) []Finding {
 				continue
 			}
 
-			// AWS/GCP metadata işaretçileri
 			cloudIndicators := []string{"ami-id", "instance-id", "iam/security-credentials", "computeMetadata"}
 			for _, ind := range cloudIndicators {
 				if strings.Contains(result.Body, ind) {
@@ -625,7 +586,6 @@ func (r *Runner) testSSRF(method, url string) []Finding {
 	return findings
 }
 
-// testOpenRedirect — açık yönlendirme (PortSwigger: DOM-based & Open redirect)
 func (r *Runner) testOpenRedirect(method, url string) []Finding {
 	var findings []Finding
 
@@ -658,11 +618,6 @@ func (r *Runner) testOpenRedirect(method, url string) []Finding {
 	return findings
 }
 
-// =============================================================================
-// DATA EXPOSURE
-// =============================================================================
-
-// testSensitiveDataExposure — response'da hassas veri sızıntısı (geliştirilmiş)
 func (r *Runner) testSensitiveDataExposure(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -713,7 +668,6 @@ func (r *Runner) testSensitiveDataExposure(method, url string, headers map[strin
 	return findings
 }
 
-// testExcessiveDataExposure — gerekenden fazla veri dönüyor mu? (OWASP API #3)
 func (r *Runner) testExcessiveDataExposure(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -757,7 +711,6 @@ func (r *Runner) testExcessiveDataExposure(method, url string, headers map[strin
 	return findings
 }
 
-// testMassAssignment — kitle atama açığı (OWASP API #6, HTB)
 // POST/PUT body'sine admin yetkisi veren alanlar ekleniyor
 func (r *Runner) testMassAssignment(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
@@ -803,7 +756,6 @@ func (r *Runner) testMassAssignment(method, url string, headers map[string]strin
 					Evidence:    fmt.Sprintf("Input body: %s → Response admin/role alanını yansıttı (HTTP %d)", mp.payload, result.StatusCode),
 				})
 			} else if result.StatusCode == 200 {
-				// 400 değil 200 dönüyorsa şüpheli
 				findings = append(findings, Finding{
 					TestName:    "Mass Assignment (Şüpheli)",
 					Severity:    Medium,
@@ -818,11 +770,6 @@ func (r *Runner) testMassAssignment(method, url string, headers map[string]strin
 	return findings
 }
 
-// =============================================================================
-// MISCONFIGURATION
-// =============================================================================
-
-// testSecurityHeaders — güvenlik header'larının eksikliği (geliştirilmiş)
 func (r *Runner) testSecurityHeaders(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -858,7 +805,6 @@ func (r *Runner) testSecurityHeaders(method, url string, headers map[string]stri
 		}
 	}
 
-	// Tehlikeli header'lar var mı?
 	dangerousHeaders := map[string]string{
 		"Server":        "Sunucu yazılım versiyonu ifşa oldu",
 		"X-Powered-By":  "Backend framework/dil bilgisi ifşa oldu",
@@ -879,7 +825,6 @@ func (r *Runner) testSecurityHeaders(method, url string, headers map[string]stri
 	return findings
 }
 
-// testCORSMisconfiguration — CORS yanlış yapılandırması (geliştirilmiş, PortSwigger: CORS)
 func (r *Runner) testCORSMisconfiguration(method, url string) []Finding {
 	var findings []Finding
 
@@ -936,7 +881,6 @@ func (r *Runner) testCORSMisconfiguration(method, url string) []Finding {
 	return findings
 }
 
-// testContentTypeConfusion — içerik tipi karıştırma (PortSwigger: API testing)
 func (r *Runner) testContentTypeConfusion(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -977,11 +921,9 @@ func (r *Runner) testContentTypeConfusion(method, url string, headers map[string
 	return findings
 }
 
-// testParameterPollution — HTTP parameter pollution (PortSwigger)
 func (r *Runner) testParameterPollution(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
-	// Aynı parametreyi iki kez gönder
 	pollutedURL := url + "?id=1&id=2"
 	result := r.client.Do(method, pollutedURL, headers, nil)
 	if result.Error != "" {
@@ -1001,11 +943,6 @@ func (r *Runner) testParameterPollution(method, url string, headers map[string]s
 	return findings
 }
 
-// =============================================================================
-// ASSET MANAGEMENT
-// =============================================================================
-
-// testImproperAssetManagement — açık debug/admin/doc endpoint'leri (OWASP API #9)
 func (r *Runner) testImproperAssetManagement(url string) []Finding {
 	var findings []Finding
 
@@ -1065,7 +1002,6 @@ func (r *Runner) testImproperAssetManagement(url string) []Finding {
 	return findings
 }
 
-// testAPIVersionExposure — eski/deprecated API versiyonlarının açık olması (OWASP API #9)
 func (r *Runner) testAPIVersionExposure(url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -1093,15 +1029,9 @@ func (r *Runner) testAPIVersionExposure(url string, headers map[string]string) [
 	return findings
 }
 
-// =============================================================================
-// BUSINESS LOGIC
-// =============================================================================
-
-// testRateLimitBypass — rate limit / brute force koruması testi (OWASP API #4)
 func (r *Runner) testRateLimitBypass(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
-	// 10 hızlı istek gönder, hepsi 200 dönüyorsa rate limit yok
 	successCount := 0
 	for i := 0; i < 10; i++ {
 		result := r.client.Do(method, url, headers, nil)
@@ -1142,7 +1072,6 @@ func (r *Runner) testRateLimitBypass(method, url string, headers map[string]stri
 	return findings
 }
 
-// testBusinessLogicFlaws — iş mantığı hataları (OWASP API)
 func (r *Runner) testBusinessLogicFlaws(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -1184,11 +1113,6 @@ func (r *Runner) testBusinessLogicFlaws(method, url string, headers map[string]s
 	return findings
 }
 
-// =============================================================================
-// YARDIMCI FONKSİYONLAR
-// =============================================================================
-
-// copyHeaders — header map'i kopyalar (orijinali bozmamak için)
 func copyHeaders(h map[string]string) map[string]string {
 	out := make(map[string]string)
 	for k, v := range h {
@@ -1197,7 +1121,6 @@ func copyHeaders(h map[string]string) map[string]string {
 	return out
 }
 
-// extractBase — URL'den sadece host+scheme kısmını alır
 // https://api.example.com/users/1 → https://api.example.com
 func extractBase(url string) string {
 	// proto://host bul
@@ -1211,7 +1134,6 @@ func extractBase(url string) string {
 	return url
 }
 
-// replaceLastID — URL'deki son sayısal segmenti verilen değerle değiştirir
 // /users/1 → /users/2
 func replaceLastID(url, newID string) string {
 	parts := strings.Split(url, "/")
@@ -1236,11 +1158,6 @@ func isNumeric(s string) bool {
 	return true
 }
 
-// =============================================================================
-// ADVANCED TESTS (GraphQL, LDAP, CRLF, Rate Limit Headers)
-// =============================================================================
-
-// testGraphQL — GraphQL introspection ve field fuzzing (PortSwigger: GraphQL)
 func (r *Runner) testGraphQL(url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -1311,7 +1228,6 @@ func (r *Runner) testGraphQL(url string, headers map[string]string) []Finding {
 	return findings
 }
 
-// testLDAPInjection — LDAP injection (research agent'tan eklendi)
 func (r *Runner) testLDAPInjection(method, url string) []Finding {
 	var findings []Finding
 
@@ -1336,7 +1252,6 @@ func (r *Runner) testLDAPInjection(method, url string) []Finding {
 				continue
 			}
 
-			// LDAP hatası veya beklenmedik veri
 			ldapErrors := []string{"ldap", "ldap_search", "invalid filter", "filter error", "naming violation"}
 			lowerBody := strings.ToLower(result.Body)
 			for _, e := range ldapErrors {
@@ -1353,7 +1268,6 @@ func (r *Runner) testLDAPInjection(method, url string) []Finding {
 				}
 			}
 
-			// Wildcard ile normalden fazla veri dönüyor mu?
 			if p.payload == "*" && result.StatusCode == 200 && result.ResponseSize > 500 {
 				findings = append(findings, Finding{
 					TestName:    "LDAP Injection (Wildcard Response)",
@@ -1369,7 +1283,6 @@ func (r *Runner) testLDAPInjection(method, url string) []Finding {
 	return findings
 }
 
-// testCRLFInjection — HTTP Response Splitting / CRLF Injection (PortSwigger)
 func (r *Runner) testCRLFInjection(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 
@@ -1391,7 +1304,6 @@ func (r *Runner) testCRLFInjection(method, url string, headers map[string]string
 			continue
 		}
 
-		// Enjekte edilen header response'da var mı?
 		if _, injected := result.Headers["X-Injected"]; injected {
 			findings = append(findings, Finding{
 				TestName:    "CRLF Injection / Response Splitting",
@@ -1424,7 +1336,6 @@ func (r *Runner) testCRLFInjection(method, url string, headers map[string]string
 	return findings
 }
 
-// testRateLimitHeaders — rate limit header'larının varlığı (araştırma bulgusundan)
 func (r *Runner) testRateLimitHeaders(method, url string, headers map[string]string) []Finding {
 	var findings []Finding
 

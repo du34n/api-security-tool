@@ -5,7 +5,6 @@ import (
 	"os"
 )
 
-// Endpoint — test edilecek bir API endpoint'i temsil eder
 type Endpoint struct {
 	Method  string            `json:"method"`
 	URL     string            `json:"url"`
@@ -13,7 +12,6 @@ type Endpoint struct {
 	Body    string            `json:"body,omitempty"`
 }
 
-// Config — aracın genel konfigürasyonu
 type Config struct {
 	BaseURL     string            `json:"base_url"`
 	AuthToken   string            `json:"auth_token,omitempty"`
@@ -23,7 +21,6 @@ type Config struct {
 	Headers     map[string]string `json:"global_headers,omitempty"`
 }
 
-// Load — JSON config dosyasını okur
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -35,7 +32,6 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Varsayılan değerler
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 10
 	}

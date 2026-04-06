@@ -8,7 +8,6 @@ import (
 	"api-security-tool/tests"
 )
 
-// EndpointMetrics — bir endpoint'in ölçüm verileri
 type EndpointMetrics struct {
 	URL          string
 	Method       string
@@ -18,7 +17,6 @@ type EndpointMetrics struct {
 	Findings     []tests.Finding
 }
 
-// RiskLevel — hesaplanan risk seviyesi
 type RiskLevel string
 
 const (
@@ -28,15 +26,14 @@ const (
 	RiskLow      RiskLevel = "LOW"
 )
 
-// EndpointRisk — bir endpoint için ML tabanlı risk analizi sonucu
 type EndpointRisk struct {
 	URL             string
 	Method          string
-	RiskScore       float64 // 0-100 arası
+	RiskScore       float64
 	RiskLevel       RiskLevel
-	AnomalyScore    float64 // Z-score tabanlı anomali puanı
-	IsTimeAnomaly   bool    // Yanıt süresi anomali mi?
-	IsSizeAnomaly   bool    // Yanıt boyutu anomali mi?
+	AnomalyScore    float64
+	IsTimeAnomaly   bool
+	IsSizeAnomaly   bool
 	FindingCount    int
 	CriticalCount   int
 	HighCount       int
@@ -44,7 +41,6 @@ type EndpointRisk struct {
 	Recommendations []string
 }
 
-// Report — tüm analiz sonucu
 type Report struct {
 	TotalEndpoints   int
 	TestedAt         time.Time
@@ -54,20 +50,17 @@ type Report struct {
 	Summary          Summary
 }
 
-// Summary — genel istatistikler
 type Summary struct {
-	CriticalFindings int
-	HighFindings     int
-	MediumFindings   int
-	LowFindings      int
+	CriticalFindings   int
+	HighFindings       int
+	MediumFindings     int
+	LowFindings        int
 	AnomalousEndpoints int
 }
 
-// Analyze — tüm endpoint sonuçlarını ML ile analiz eder
 func Analyze(results []scanner.Result, findingsMap map[string][]tests.Finding) Report {
 	metrics := buildMetrics(results, findingsMap)
 
-	// İstatistiksel değerleri hesapla
 	responseTimes := extractResponseTimes(metrics)
 	responseSizes := extractResponseSizes(metrics)
 
@@ -81,7 +74,6 @@ func Analyze(results []scanner.Result, findingsMap map[string][]tests.Finding) R
 		risk := computeRisk(m, meanTime, stdTime, meanSize, stdStd)
 		risks = append(risks, risk)
 
-		// Summary güncelle
 		for _, f := range m.Findings {
 			switch f.Severity {
 			case tests.Critical:
@@ -112,7 +104,6 @@ func Analyze(results []scanner.Result, findingsMap map[string][]tests.Finding) R
 	}
 }
 
-// buildMetrics — scanner result ve findings'i birleştirir
 func buildMetrics(results []scanner.Result, findingsMap map[string][]tests.Finding) []EndpointMetrics {
 	var metrics []EndpointMetrics
 	for _, r := range results {
@@ -129,14 +120,12 @@ func buildMetrics(results []scanner.Result, findingsMap map[string][]tests.Findi
 	return metrics
 }
 
-// computeRisk — tek endpoint için risk skoru hesaplar
 func computeRisk(m EndpointMetrics, meanTime, stdTime, meanSize, stdSize float64) EndpointRisk {
 	risk := EndpointRisk{
 		URL:    m.URL,
 		Method: m.Method,
 	}
 
-	// 1. Finding tabanlı skor (0-60 puan)
 	findingScore := 0.0
 	for _, f := range m.Findings {
 		switch f.Severity {
@@ -156,7 +145,6 @@ func computeRisk(m EndpointMetrics, meanTime, stdTime, meanSize, stdSize float64
 	risk.Findings = m.Findings
 	findingScore = math.Min(findingScore, 60)
 
-	// 2. Anomali skoru — Z-score tabanlı (0-25 puan)
 	timeZScore := 0.0
 	if stdTime > 0 {
 		timeZScore = math.Abs(float64(m.ResponseTime.Milliseconds())-meanTime) / stdTime
@@ -167,22 +155,20 @@ func computeRisk(m EndpointMetrics, meanTime, stdTime, meanSize, stdSize float64
 		sizeZScore = math.Abs(float64(m.ResponseSize)-meanSize) / stdSize
 	}
 
-	// Z-score > 2 ise anomali
 	risk.IsTimeAnomaly = timeZScore > 2.0
 	risk.IsSizeAnomaly = sizeZScore > 2.0
 	risk.AnomalyScore = math.Max(timeZScore, sizeZScore)
 
 	anomalyScore := math.Min((timeZScore+sizeZScore)*5, 25)
 
-	// 3. HTTP status kodu riski (0-15 puan)
 	statusScore := 0.0
 	switch {
 	case m.StatusCode == 500:
-		statusScore = 15 // Sunucu hatası — injection ipucu olabilir
+		statusScore = 15
 	case m.StatusCode == 403:
-		statusScore = 0 // İyi — erişim engelli
+		statusScore = 0
 	case m.StatusCode == 200 && m.Method == "DELETE":
-		statusScore = 10 // Silme işlemi başarılı olmamalıydı?
+		statusScore = 10
 	}
 
 	risk.RiskScore = math.Min(findingScore+anomalyScore+statusScore, 100)
@@ -192,7 +178,6 @@ func computeRisk(m EndpointMetrics, meanTime, stdTime, meanSize, stdSize float64
 	return risk
 }
 
-// scoreToLevel — sayısal skoru seviyeye çevirir
 func scoreToLevel(score float64) RiskLevel {
 	switch {
 	case score >= 75:
@@ -206,30 +191,28 @@ func scoreToLevel(score float64) RiskLevel {
 	}
 }
 
-// buildRecommendations — risk bulgularına göre öneri üretir
 func buildRecommendations(r EndpointRisk) []string {
 	var recs []string
 
 	if r.CriticalCount > 0 {
-		recs = append(recs, "Kritik açıklar acilen giderilmeli — bu endpoint'i geçici olarak devre dışı bırakın.")
+		recs = append(recs, "Critical vulnerabilities must be addressed immediately.")
 	}
 	if r.HighCount > 0 {
-		recs = append(recs, "Yüksek riskli bulgular bir sonraki sprint'te düzeltilmeli.")
+		recs = append(recs, "High severity findings should be fixed in the next sprint.")
 	}
 	if r.IsTimeAnomaly {
-		recs = append(recs, "Yanıt süresi anormal — SQL injection veya yavaş sorgu olabilir, query loglarını inceleyin.")
+		recs = append(recs, "Response time anomaly detected — possible SQL injection or slow query.")
 	}
 	if r.IsSizeAnomaly {
-		recs = append(recs, "Yanıt boyutu anormal — veri sızıntısı kontrolü yapın.")
+		recs = append(recs, "Response size anomaly detected — check for data leakage.")
 	}
 	if len(recs) == 0 {
-		recs = append(recs, "Belirgin bir risk tespit edilmedi, periyodik taramayı sürdürün.")
+		recs = append(recs, "No significant risks detected. Continue periodic scanning.")
 	}
 
 	return recs
 }
 
-// computeOverallScore — tüm endpoint'lerin ağırlıklı ortalaması
 func computeOverallScore(risks []EndpointRisk) float64 {
 	if len(risks) == 0 {
 		return 0
@@ -241,9 +224,7 @@ func computeOverallScore(risks []EndpointRisk) float64 {
 	return total / float64(len(risks))
 }
 
-// getTopRisks — en yüksek riskli N endpoint'i döner
 func getTopRisks(risks []EndpointRisk, n int) []EndpointRisk {
-	// Basit bubble sort — N küçük olduğu için yeterli
 	sorted := make([]EndpointRisk, len(risks))
 	copy(sorted, risks)
 	for i := 0; i < len(sorted); i++ {
@@ -259,7 +240,6 @@ func getTopRisks(risks []EndpointRisk, n int) []EndpointRisk {
 	return sorted[:n]
 }
 
-// meanAndStd — ortalama ve standart sapma hesaplar
 func meanAndStd(values []float64) (float64, float64) {
 	if len(values) == 0 {
 		return 0, 0

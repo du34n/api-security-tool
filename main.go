@@ -21,15 +21,15 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:   "api-security-tool",
-		Short: "API güvenlik tarama ve ML risk analiz aracı",
+		Short: "API security scanner and risk analyzer",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(configPath, outputDir, swaggerURL)
 		},
 	}
 
-	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.json", "Konfigürasyon dosyası")
-	rootCmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Rapor çıktı klasörü")
-	rootCmd.Flags().StringVarP(&swaggerURL, "swagger", "s", "", "Swagger/OpenAPI spec URL'i (otomatik keşif)")
+	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.json", "Config file path")
+	rootCmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Report output directory")
+	rootCmd.Flags().StringVarP(&swaggerURL, "swagger", "s", "", "Swagger/OpenAPI spec URL")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -41,8 +41,7 @@ func run(configPath, outputDir, swaggerURL string) error {
 	var err error
 
 	if swaggerURL != "" {
-		// Swagger modunda config'i spec'ten oluştur
-		fmt.Printf("🔎 Swagger spec okunuyor: %s\n", swaggerURL)
+		fmt.Printf("Fetching swagger spec: %s\n", swaggerURL)
 		baseURL, endpoints, fetchErr := scanner.FetchEndpoints(swaggerURL)
 		if fetchErr != nil {
 			return fetchErr
@@ -54,20 +53,17 @@ func run(configPath, outputDir, swaggerURL string) error {
 			Concurrency: 5,
 		}
 	} else {
-		// Normal config dosyası modu
 		cfg, err = config.Load(configPath)
 		if err != nil {
-			return fmt.Errorf("config yüklenemedi: %w", err)
+			return fmt.Errorf("failed to load config: %w", err)
 		}
 	}
 
-	fmt.Printf("🔍 %d endpoint taranıyor...\n\n", len(cfg.Endpoints))
+	fmt.Printf("Scanning %d endpoints...\n\n", len(cfg.Endpoints))
 
-	// HTTP client oluştur
 	client := scanner.New(cfg.Timeout, cfg.Headers)
 	testRunner := tests.New(client)
 
-	// Paralel tarama — goroutine ile
 	var mu sync.Mutex
 	var results []scanner.Result
 	findingsMap := make(map[string][]tests.Finding)
@@ -101,7 +97,7 @@ func run(configPath, outputDir, swaggerURL string) error {
 			findingsMap[key] = findings
 			mu.Unlock()
 
-			fmt.Printf("  %-6s %-45s → %d (%d bulgu)\n",
+			fmt.Printf("  %-6s %-45s -> %d (%d findings)\n",
 				ep.Method, url, result.StatusCode, len(findings))
 		}(ep)
 	}
@@ -109,24 +105,21 @@ func run(configPath, outputDir, swaggerURL string) error {
 	wg.Wait()
 	fmt.Println()
 
-	// ML analizi
-	fmt.Println("🤖 ML risk analizi yapılıyor...")
+	fmt.Println("Running risk analysis...")
 	analysisReport := analyzer.Analyze(results, findingsMap)
 
-	// Raporları kaydet
 	jsonPath := outputDir + "/report.json"
 	htmlPath := outputDir + "/report.html"
 
 	if err := report.SaveJSON(analysisReport, jsonPath); err != nil {
-		return fmt.Errorf("JSON raporu kaydedilemedi: %w", err)
+		return fmt.Errorf("failed to save JSON report: %w", err)
 	}
 	if err := report.SaveHTML(analysisReport, htmlPath); err != nil {
-		return fmt.Errorf("HTML raporu kaydedilemedi: %w", err)
+		return fmt.Errorf("failed to save HTML report: %w", err)
 	}
 
-	// Terminal özeti
-	fmt.Printf("📊 Genel Risk Skoru: %.1f/100\n", analysisReport.OverallRiskScore)
-	fmt.Printf("   Kritik: %d | Yüksek: %d | Orta: %d | Düşük: %d\n",
+	fmt.Printf("Overall Risk Score: %.1f/100\n", analysisReport.OverallRiskScore)
+	fmt.Printf("  Critical: %d | High: %d | Medium: %d | Low: %d\n",
 		analysisReport.Summary.CriticalFindings,
 		analysisReport.Summary.HighFindings,
 		analysisReport.Summary.MediumFindings,
@@ -134,13 +127,13 @@ func run(configPath, outputDir, swaggerURL string) error {
 	)
 
 	if len(analysisReport.TopRisks) > 0 {
-		fmt.Println("\n🚨 En Riskli Endpointler:")
+		fmt.Println("\nTop Risk Endpoints:")
 		for i, r := range analysisReport.TopRisks {
-			fmt.Printf("  %d. [%s] %s %s — %.1f puan\n",
+			fmt.Printf("  %d. [%s] %s %s -- %.1f\n",
 				i+1, r.RiskLevel, r.Method, r.URL, r.RiskScore)
 		}
 	}
 
-	fmt.Printf("\n✅ Raporlar kaydedildi:\n   %s\n   %s\n", jsonPath, htmlPath)
+	fmt.Printf("\nReports saved:\n  %s\n  %s\n", jsonPath, htmlPath)
 	return nil
 }
